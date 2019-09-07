@@ -1,0 +1,14 @@
+{
+  "steps": [
+    {
+      "command": "cargo",
+      "arguments": [
+        "build",
+        "--release",
+        "--target=wasm32-unknown-unknown",
+        "--target-dir=/home/jakubs/nix-holochain/my_zome/target"
+      ]
+    }
+  ],
+  "artifact": "/home/jakubs/nix-holochain/my_zome/target/wasm32-unknown-unknown/release/my_zome.wasm"
+}
