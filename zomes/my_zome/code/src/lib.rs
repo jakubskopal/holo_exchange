@@ -20,10 +20,31 @@ use hdk::{
     holochain_core_types::{
         dna::entry_types::Sharing,
         entry::Entry,
+        entry::AppEntryValue,
         link::LinkMatch
     },
-    error::ZomeApiError
+    error::ZomeApiError,
 };
+
+use std::convert::TryFrom;
+use serde::export::fmt::Debug;
+use serde::Serialize;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct EntryWithAddress<T: Debug + Serialize> {
+    address: Address,
+    entry: T
+}
+
+impl <T: Debug + Serialize> From<EntryWithAddress<T>> for JsonString {
+    fn from(v: EntryWithAddress<T>) -> Self {
+        let s = &format!(r#"{{ "address": {}, "entry": {} }}"#,
+                        serde_json::to_string(&v.address).unwrap_or_else(|_| panic!("could not Jsonify: {:?}", v)),
+                        serde_json::to_string(&v.entry).unwrap_or_else(|_| panic!("could not Jsonify: {:?}", v))
+        );
+        JsonString::from_json(s)
+    }
+}
 
 // ============================================================================ ANCHOR
 
@@ -182,14 +203,14 @@ define_zome! {
             outputs: |result: ZomeApiResult<Address>|,
             handler: handle_create_exchange
         }
-//        find_exchanges: {
-//            inputs: |offering: Optional<String>, requesting: Optional<String>|,
-//            outputs: |result: ZomeApiResult<List<Exchange>>|,
-//            handler: handle_create_exchange
-//        }
+        find_exchanges: {
+            inputs: |offering: String, requesting: String|,
+            outputs: |result: ZomeApiResult<Vec<EntryWithAddress<Exchange>>>|,
+            handler: handle_find_exchanges
+        }
     ]
     traits: {
-        hc_public [create_profile, create_exchange]
+        hc_public [create_profile, create_exchange, find_exchanges]
     }
 }
 
@@ -223,6 +244,69 @@ fn get_my_profile_address() -> ZomeApiResult<Address> {
         .clone();
 
     Ok(address)
+}
+
+///
+/// Helper function that perfoms a try_from for every entry
+/// of a get_links_and_load for a given type. Any entries that either fail to
+/// load or cannot be converted to the type will be dropped.
+///
+pub fn get_links_and_load_type_with_address<R: TryFrom<AppEntryValue> + Debug + Serialize>(
+    base: &Address,
+    link_type: LinkMatch<&str>,
+    tag: LinkMatch<&str>,
+) -> ZomeApiResult<Vec<EntryWithAddress<R>>> {
+    let link_load_results = hdk::get_links_and_load(base, link_type, tag)?;
+
+    let results_with_errors_too = link_load_results
+        .iter()
+        .map(|maybe_entry| match maybe_entry {
+            Ok(entry) => match entry {
+                Entry::App(_, entry_value) => {
+                    let typed_entry = R::try_from(entry_value.to_owned()).map_err(|_| {
+                        ZomeApiError::Internal(
+                            "Could not convert get_links result to requested type".to_string(),
+                        )
+                    })?;
+
+                    Ok(EntryWithAddress {
+                        entry: typed_entry,
+                        address: hdk::entry_address(entry)?
+                    })
+                }
+                _ => Err(ZomeApiError::Internal(
+                    "get_links did not return an app entry".to_string(),
+                )),
+            },
+            _ => Err(ZomeApiError::Internal(
+                "get_links did not return an app entry".to_string(),
+            )),
+        });
+
+    Ok(results_with_errors_too
+        .filter_map(Result::ok)
+        .collect())
+}
+
+fn handle_find_exchanges(offering: String, requesting: String) -> ZomeApiResult<Vec<EntryWithAddress<Exchange>>> {
+    // TODO: rewrite to use the anchors
+
+    let exchanges_anchor = Entry::App(
+        "anchor".into(),
+        RawString::from("exchanges").into()
+    );
+
+    let exchanges_anchor_address = hdk::entry_address(&exchanges_anchor)?;
+
+    let exchanges = get_links_and_load_type_with_address::<Exchange>(&exchanges_anchor_address, LinkMatch::Exactly("anchor_exchange"), LinkMatch::Any)?
+        .iter()
+        .filter(|&p| {
+            (offering == "" || offering == p.entry.offering) && (requesting == "" || requesting == p.entry.requesting)
+        })
+        .map(|e| { e.clone() })
+        .collect();
+
+    Ok(exchanges)
 }
 
 fn handle_create_exchange(offering: String, requesting: String) -> ZomeApiResult<Address> {

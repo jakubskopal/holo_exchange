@@ -30,14 +30,34 @@ const diorama = new Diorama({
 //   t.notEqual(createResult.Ok, undefined)
 // })
 
-diorama.registerScenario("Can create exchange", async (s, t, { alice }) => {
-  console.log("=============================================== CREATE EXCHANGE");
-  await alice.call('my_zome', 'create_profile', { nickname: "alice" })
+// diorama.registerScenario("Can create exchange", async (s, t, { alice }) => {
+//   console.log("=============================================== CREATE EXCHANGE");
+//   await alice.call('my_zome', 'create_profile', { nickname: "alice" })
+//
+//   const createResult = await alice.call('my_zome', 'create_exchange', { offering: "apples", requesting: "oranges" })
+//   console.log(createResult)
+//   t.equal(createResult.Err, undefined)
+//   t.notEqual(createResult.Ok, undefined)
+// })
 
-  const createResult = await alice.call('my_zome', 'create_exchange', { offering: "apples", requesting: "oranges" })
-  console.log(createResult)
-  t.equal(createResult.Err, undefined)
-  t.notEqual(createResult.Ok, undefined)
+diorama.registerScenario("Can find exchange", async (s, t, { alice, bob }) => {
+  console.log("=============================================== FIND EXCHANGE");
+  await alice.call('my_zome', 'create_profile', { nickname: "alice" })
+  await bob.call('my_zome', 'create_profile', { nickname: "bob" })
+
+  await alice.call('my_zome', 'create_exchange', { offering: "apples", requesting: "oranges" })
+
+  const searchResult = await bob.call('my_zome', 'find_exchanges', { offering: "", requesting: "" })
+  console.log(JSON.stringify(searchResult, null, 2))
+  t.equal(searchResult.Err, undefined)
+  t.equal(searchResult.Ok.length, 1)
+
+  const exchange = searchResult.Ok[0]
+
+  t.notEqual(exchange.address, undefined)
+  t.equal(exchange.entry.offering, "apples")
+  t.equal(exchange.entry.requesting, "oranges")
+  t.notEqual(exchange.entry.profile, undefined)
 })
 
 diorama.run()
