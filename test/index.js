@@ -45,6 +45,7 @@ diorama.registerScenario("Can get own profile", async (s, t, { alice }) => {
   t.notEqual(result.Ok.address, undefined)
   t.notEqual(result.Ok.entry, undefined)
   t.equal(result.Ok.entry.nickname, "alice")
+  t.notEqual(result.Ok.entry.agent_address, undefined)
 
   result = await alice.call('my_zome', 'get_profile', { profile_address: result.Ok.address })
   console.log(result)
@@ -53,6 +54,7 @@ diorama.registerScenario("Can get own profile", async (s, t, { alice }) => {
   t.notEqual(result.Ok.address, undefined)
   t.notEqual(result.Ok.entry, undefined)
   t.equal(result.Ok.entry.nickname, "alice")
+  t.notEqual(result.Ok.entry.agent_address, undefined)
 })
 
 diorama.registerScenario("Can create offer", async (s, t, { alice }) => {
@@ -109,7 +111,7 @@ diorama.registerScenario("Can find a profile", async (s, t, { alice }) => {
 
   t.notEqual(profile.address, undefined)
   t.equal(profile.entry.nickname, "alice")
-  t.notEqual(profile.entry.address, undefined)
+  t.notEqual(profile.entry.agent_address, undefined)
 })
 
 diorama.registerScenario("Can find deep offers when I WANT", async (s, t, { alice }) => {

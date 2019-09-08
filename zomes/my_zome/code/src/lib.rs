@@ -218,7 +218,7 @@ fn handle_create_profile(nickname: String) -> ZomeApiResult<Address> {
         "profile".into(),
         Profile {
             nickname: nickname.clone(),
-            address: AGENT_ADDRESS.to_string().into()
+            agent_address: AGENT_ADDRESS.to_string().into()
         }.into()
     );
 
@@ -295,7 +295,7 @@ fn get_anchor_address(name: &'static str) -> ZomeApiResult<Address> {
 #[derive(Serialize, Deserialize, Debug, Clone, DefaultJson)]
 pub struct Profile {
     nickname: String,
-    address: Address
+    agent_address: Address
 }
 
 pub fn profile_definition() -> ValidatingEntryType {
