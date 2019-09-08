@@ -39,7 +39,8 @@ define_zome! {
         anchor_definition(),
         profile_definition(),
         item_definition(),
-        exchange_definition()
+        offer_definition(),
+        interest_definition()
     ]
 
     init: || {
@@ -61,29 +62,34 @@ define_zome! {
             outputs: |result: ZomeApiResult<EntryWithAddress<Profile>>|,
             handler: handle_get_my_profile
         }
-        create_exchange: {
-            inputs: |iam_offering: String, iam_requesting: String|,
+        create_offer: {
+            inputs: |iam_offering: String, iam_requesting: Vec<String>|,
             outputs: |result: ZomeApiResult<Address>|,
-            handler: handle_create_exchange
+            handler: handle_create_offer
         }
-        find_exchanges: {
-            inputs: |iam_offering: String, iam_requesting: String|,
-            outputs: |result: ZomeApiResult<Vec<EntryWithAddress<Exchange>>>|,
-            handler: handle_find_exchanges
+        register_interest: {
+            inputs: |offer_address: Address|,
+            outputs: |result: ZomeApiResult<()>|,
+            handler: handle_register_interest
+        }
+        find_offers: {
+            inputs: |i_want: String|,
+            outputs: |result: ZomeApiResult<Vec<EntryWithAddress<Offer>>>|,
+            handler: handle_find_offers
         }
         find_profiles: {
             inputs: |nickname_prefix: String|,
             outputs: |result: ZomeApiResult<Vec<EntryWithAddress<Profile>>>|,
             handler: handle_find_profiles
         }
-        find_swaps: {
-            inputs: |iam_offering: String, iam_requesting: String, max_swaps: i32|,
-            outputs: |result: ZomeApiResult<Vec<Vec<EntryWithAddress<Exchange>>>>|,
-            handler: handle_find_swaps
-        }
+//        find_swaps: {
+//            inputs: |iam_offering: String, iam_requesting: String, max_swaps: i32|,
+//            outputs: |result: ZomeApiResult<Vec<Vec<EntryWithAddress<Offer>>>>|,
+//            handler: handle_find_swaps
+//        }
     ]
     traits: {
-        hc_public [create_profile, get_my_profile, create_exchange, find_exchanges, find_profiles, find_swaps]
+        hc_public [create_profile, get_my_profile, create_offer, register_interest, find_offers, find_profiles, find_swaps]
     }
 }
 
@@ -99,83 +105,85 @@ fn handle_find_profiles(nickname_prefix: String) -> ZomeApiResult<Vec<EntryWithA
     get_links_and_load_type_with_address::<Profile>(&profiles_anchor_address, LinkMatch::Exactly("anchor_profile"), LinkMatch::Regex(&format!("^{}.*", &regex::escape(&nickname_prefix))))
 }
 
-fn handle_find_exchanges(iam_offering: String, iam_requesting: String) -> ZomeApiResult<Vec<EntryWithAddress<Exchange>>> {
+fn handle_find_offers(i_want: String) -> ZomeApiResult<Vec<EntryWithAddress<Offer>>> {
     // TODO: rewrite to use the anchors
-    let exchanges_anchor_address = get_anchor_address("exchanges")?;
+    let offers_anchor_address = get_anchor_address("offers")?;
 
-    let exchanges = get_links_and_load_type_with_address::<Exchange>(&exchanges_anchor_address, LinkMatch::Exactly("anchor_exchange"), LinkMatch::Any)?
+    let offers = get_links_and_load_type_with_address::<Offer>(&offers_anchor_address, LinkMatch::Exactly("anchor_offer"), LinkMatch::Any)?
         .iter()
         .filter(|&p| {
-            (iam_offering == "" || iam_offering == p.entry.requesting) && (iam_requesting == "" || iam_requesting == p.entry.offering)
+            i_want == "" || i_want == p.entry.offering
         })
         .map(|e| { e.clone() })
         .collect();
 
-    Ok(exchanges)
+    Ok(offers)
 }
 
-fn handle_find_swaps_0(iam_offering: String,
-                       iam_requesting: String,
-                       max_swaps: i32,
-                       already_exchanged: Vec<EntryWithAddress<Exchange>>,
-                       results: &mut Vec<Vec<EntryWithAddress<Exchange>>>) -> ZomeApiResult<()> {
-    if max_swaps == 0 {
-        Ok(())
-    } else if iam_requesting == "" {
-        handle_find_exchanges(iam_offering, "".into())?
-            .iter()
-            .for_each(|ex| {
-                let entry = [ already_exchanged.as_slice(), vec![ex.clone()].as_slice() ].concat();
-                results.push(entry.clone());
-                handle_find_swaps_0(ex.entry.offering.clone(), "".into(), max_swaps - 1, entry, results)
-                    .unwrap_or(())
-            });
-        Ok(())
-    } else if iam_offering == "" {
-        handle_find_exchanges("".into(), iam_requesting)?
-            .iter()
-            .for_each(|ex| {
-                let entry = [ vec![ex.clone()].as_slice(), already_exchanged.as_slice() ].concat();
-                results.push(entry.clone());
-                handle_find_swaps_0("".into(), ex.entry.requesting.clone(), max_swaps - 1, entry, results)
-                    .unwrap_or(())
-            });
-        Ok(())
-    } else {
-        Err(ZomeApiError::Internal("Not implemented".into()))
-    }
-}
+//fn handle_find_swaps_0(iam_offering: String,
+//                       iam_requesting: String,
+//                       max_swaps: i32,
+//                       already_swapped: Vec<EntryWithAddress<Offer>>,
+//                       results: &mut Vec<Vec<EntryWithAddress<Offer>>>) -> ZomeApiResult<()> {
+//    if max_swaps == 0 {
+//        Ok(())
+//    } else if iam_requesting == "" {
+//        handle_find_offers(iam_offering, "".into())?
+//            .iter()
+//            .for_each(|ex| {
+//                let entry = [ already_swapped.as_slice(), vec![ex.clone()].as_slice() ].concat();
+//                results.push(entry.clone());
+//                handle_find_swaps_0(ex.entry.offering.clone(), "".into(), max_swaps - 1, entry, results)
+//                    .unwrap_or(())
+//            });
+//        Ok(())
+//    } else if iam_offering == "" {
+//        handle_find_offers("".into(), iam_requesting)?
+//            .iter()
+//            .for_each(|ex| {
+//                let entry = [ vec![ex.clone()].as_slice(), already_swapped.as_slice() ].concat();
+//                results.push(entry.clone());
+//                handle_find_swaps_0("".into(), ex.entry.requesting.clone(), max_swaps - 1, entry, results)
+//                    .unwrap_or(())
+//            });
+//        Ok(())
+//    } else {
+//        Err(ZomeApiError::Internal("Not implemented".into()))
+//    }
+//}
 
-fn handle_find_swaps(iam_offering: String, iam_requesting: String, max_swaps: i32) -> ZomeApiResult<Vec<Vec<EntryWithAddress<Exchange>>>>{
-    let mut result = Vec::new();
-    handle_find_swaps_0(iam_offering, iam_requesting, max_swaps, vec![], &mut result)?;
-    Ok(result.clone())
-}
+//fn handle_find_swaps(iam_offering: String, iam_requesting: String, max_swaps: i32) -> ZomeApiResult<Vec<Vec<EntryWithAddress<Offer>>>>{
+//    let mut result = Vec::new();
+//    handle_find_swaps_0(iam_offering, iam_requesting, max_swaps, vec![], &mut result)?;
+//    Ok(result.clone())
+//}
 
-fn handle_create_exchange(offering: String, requesting: String) -> ZomeApiResult<Address> {
-    let offered_item = get_or_create_item(offering.clone())?;
-    let requested_item = get_or_create_item(requesting.clone())?;
-    let profile = get_my_profile_address()?;
+fn handle_create_offer(iam_offering: String, iam_requesting: Vec<String>) -> ZomeApiResult<Address> {
+    let offered_item_address = get_or_create_item(iam_offering.clone())?;
+    let profile_address = get_my_profile_address()?;
 
-    let exchanges_anchor_address = get_anchor_address("exchanges")?;
+    let offers_anchor_address = get_anchor_address("offers")?;
 
-    let exchange = Entry::App(
-        "exchange".into(),
-        Exchange {
-            requesting: requesting.clone(),
-            offering: offering.clone(),
-            profile: profile.to_string().into()
+    let offer = Entry::App(
+        "offer".into(),
+        Offer {
+            requesting: iam_requesting.clone(),
+            offering: iam_offering.clone(),
+            profile: profile_address.to_string().into()
         }.into()
     );
 
-    let exchange_address = hdk::commit_entry(&exchange)?;
+    let offer_address = hdk::commit_entry(&offer)?;
 
-    hdk::link_entries(&exchanges_anchor_address, &exchange_address, "anchor_exchange", "")?;
-    hdk::link_entries(&offered_item, &exchange_address, "item_exchange", "offering")?;
-    hdk::link_entries(&requested_item, &exchange_address, "item_exchange", "requesting")?;
-    hdk::link_entries(&profile, &exchange_address, "profile_exchange", "")?;
+    hdk::link_entries(&offers_anchor_address, &offer_address, "anchor_offer", "")?;
+    hdk::link_entries(&offered_item_address, &offer_address, "item_offer", "offering")?;
+    hdk::link_entries(&profile_address, &offer_address, "profile_offer", "")?;
 
-    Ok(exchange_address)
+    Ok(offer_address)
+}
+
+fn handle_show_interest(offer_address: Address) -> ZomeApiResult<()> {
+
 }
 
 fn handle_create_profile(nickname: String) -> ZomeApiResult<Address> {
@@ -245,8 +253,8 @@ pub fn anchor_definition() -> ValidatingEntryType {
                 }
             ),
             to!(
-                "exchange",
-                link_type: "anchor_exchange",
+                "offer",
+                link_type: "anchor_offer",
                 validation_package: || hdk::ValidationPackageDefinition::Entry,
                 validation: |_validation_data: hdk::LinkValidationData| {
                     Ok(())
@@ -257,12 +265,12 @@ pub fn anchor_definition() -> ValidatingEntryType {
 }
 
 fn get_anchor_address(name: &'static str) -> ZomeApiResult<Address> {
-    let exchanges_anchor = Entry::App(
+    let offers_anchor = Entry::App(
         "anchor".into(),
         RawString::from(name).into()
     );
 
-    hdk::commit_entry(&exchanges_anchor)
+    hdk::commit_entry(&offers_anchor)
 }
 
 // ============================================================================ PROFILE
@@ -292,8 +300,8 @@ pub fn profile_definition() -> ValidatingEntryType {
                 }
             ),
             to!(
-                "exchange",
-                link_type: "profile_exchange",
+                "offer",
+                link_type: "profile_offer",
                 validation_package: || hdk::ValidationPackageDefinition::Entry,
                 validation: |_validation_data: hdk::LinkValidationData| {
                     Ok(())
@@ -331,8 +339,8 @@ pub fn item_definition() -> ValidatingEntryType {
         },
         links: [
             to!(
-                "exchange",
-                link_type: "item_exchange",
+                "offer",
+                link_type: "item_offer",
                 validation_package: || hdk::ValidationPackageDefinition::Entry,
                 validation: |_validation_data: hdk::LinkValidationData| {
                     Ok(())
@@ -358,25 +366,72 @@ fn get_or_create_item(name: String) -> ZomeApiResult<Address> {
     Ok(item_address)
 }
 
-// ============================================================================ EXCHANGE
+// ============================================================================ OFFER
 
 #[derive(Serialize, Deserialize, Debug, Clone, DefaultJson)]
-pub struct Exchange {
-    requesting: String,
+pub struct Offer {
+    requesting: Vec<String>,
     offering: String,
     profile: Address
 }
 
-pub fn exchange_definition() -> ValidatingEntryType {
+pub fn offer_definition() -> ValidatingEntryType {
     entry!(
-        name: "exchange",
+        name: "offer",
         description: "",
         sharing: Sharing::Public,
         validation_package: || hdk::ValidationPackageDefinition::Entry,
-        validation: |_validation_data: hdk::EntryValidationData<Exchange>| {
+        validation: |_validation_data: hdk::EntryValidationData<Offer>| {
             Ok(())
         },
         links: [
+            from!(
+                "%agent_id",
+                link_type: "agent_offer_interest",
+                validation_package: || hdk::ValidationPackageDefinition::Entry,
+                validation: |_validation_data: hdk::LinkValidationData| {
+                    Ok(())
+                }
+            ),
+        ]
+    )
+}
+
+// ============================================================================ INTEREST
+
+#[derive(Serialize, Deserialize, Debug, Clone, DefaultJson)]
+pub struct Interest {
+    offer: Address,
+    profile: Address,
+    start_time: u64
+}
+
+pub fn interest_definition() -> ValidatingEntryType {
+    entry!(
+        name: "interest",
+        description: "",
+        sharing: Sharing::Public,
+        validation_package: || hdk::ValidationPackageDefinition::Entry,
+        validation: |_validation_data: hdk::EntryValidationData<Interest>| {
+            Ok(())
+        },
+        links: [
+            from!(
+                "%agent_id",
+                link_type: "agent_interest",
+                validation_package: || hdk::ValidationPackageDefinition::Entry,
+                validation: |_validation_data: hdk::LinkValidationData| {
+                    Ok(())
+                }
+            ),
+            from!(
+                "offer",
+                link_type: "offer_interest",
+                validation_package: || hdk::ValidationPackageDefinition::Entry,
+                validation: |_validation_data: hdk::LinkValidationData| {
+                    Ok(())
+                }
+            )
         ]
     )
 }
