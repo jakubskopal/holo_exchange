@@ -92,15 +92,16 @@ define_zome! {
             outputs: |result: ZomeApiResult<()>|,
             handler: handle_remove_offer
         }
-//        find_swaps: {
-//            inputs: |iam_offering: String, iam_requesting: String, max_swaps: i32|,
-//            outputs: |result: ZomeApiResult<Vec<Vec<EntryWithAddress<Offer>>>>|,
-//            handler: handle_find_swaps
-//        }
+        find_deep_offers_i_want: {
+            inputs: |i_want: String, max_swaps: i32|,
+            outputs: |result: ZomeApiResult<Vec<Vec<EntryWithAddress<Offer>>>>|,
+            handler: handle_find_deep_offers_i_want
+        }
     ]
     traits: {
         hc_public [create_profile, get_my_profile, get_profile, find_profiles,
-                   create_offer, get_my_offers, find_offers, remove_offer]
+                   create_offer, get_my_offers, find_offers, remove_offer,
+                   find_deep_offers_i_want]
     }
 }
 
@@ -150,43 +151,34 @@ fn handle_get_my_offers() -> ZomeApiResult<Vec<EntryWithAddress<Offer>>> {
     get_links_and_load_type_with_address(&profile_address, LinkMatch::Exactly("profile_offer"), LinkMatch::Any)
 }
 
-//fn handle_find_swaps_0(iam_offering: String,
-//                       iam_requesting: String,
-//                       max_swaps: i32,
-//                       already_swapped: Vec<EntryWithAddress<Offer>>,
-//                       results: &mut Vec<Vec<EntryWithAddress<Offer>>>) -> ZomeApiResult<()> {
-//    if max_swaps == 0 {
-//        Ok(())
-//    } else if iam_requesting == "" {
-//        handle_find_offers(iam_offering, "".into())?
-//            .iter()
-//            .for_each(|ex| {
-//                let entry = [ already_swapped.as_slice(), vec![ex.clone()].as_slice() ].concat();
-//                results.push(entry.clone());
-//                handle_find_swaps_0(ex.entry.offering.clone(), "".into(), max_swaps - 1, entry, results)
-//                    .unwrap_or(())
-//            });
-//        Ok(())
-//    } else if iam_offering == "" {
-//        handle_find_offers("".into(), iam_requesting)?
-//            .iter()
-//            .for_each(|ex| {
-//                let entry = [ vec![ex.clone()].as_slice(), already_swapped.as_slice() ].concat();
-//                results.push(entry.clone());
-//                handle_find_swaps_0("".into(), ex.entry.requesting.clone(), max_swaps - 1, entry, results)
-//                    .unwrap_or(())
-//            });
-//        Ok(())
-//    } else {
-//        Err(ZomeApiError::Internal("Not implemented".into()))
-//    }
-//}
+fn handle_find_deep_offers_i_want_0(i_want: String,
+                                    max_swaps: i32,
+                                    already_swapped: Vec<EntryWithAddress<Offer>>,
+                                    results: &mut Vec<Vec<EntryWithAddress<Offer>>>) -> ZomeApiResult<()> {
+    if max_swaps == 0 {
+        Ok(())
+    } else {
+        handle_find_offers(i_want)?
+            .iter()
+            .map(|ex| {
+                let entry = [ vec![ex.clone()].as_slice(), already_swapped.as_slice() ].concat();
+                results.push(entry.clone());
+                ex.entry.requesting
+                    .iter()
+                    .map(|offer_wants| {
+                        handle_find_deep_offers_i_want_0(offer_wants.clone(), max_swaps - 1, entry.clone(), results)
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+}
 
-//fn handle_find_swaps(iam_offering: String, iam_requesting: String, max_swaps: i32) -> ZomeApiResult<Vec<Vec<EntryWithAddress<Offer>>>>{
-//    let mut result = Vec::new();
-//    handle_find_swaps_0(iam_offering, iam_requesting, max_swaps, vec![], &mut result)?;
-//    Ok(result.clone())
-//}
+fn handle_find_deep_offers_i_want(i_want: String, max_swaps: i32) -> ZomeApiResult<Vec<Vec<EntryWithAddress<Offer>>>>{
+    let mut result = Vec::new();
+    handle_find_deep_offers_i_want_0(i_want, max_swaps, vec![], &mut result)?;
+    Ok(result.clone())
+}
 
 fn handle_create_offer(iam_offering: String, iam_requesting: Vec<String>) -> ZomeApiResult<Address> {
     let offered_item_address = get_or_create_item(iam_offering.clone())?;

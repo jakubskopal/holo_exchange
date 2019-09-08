@@ -112,39 +112,39 @@ diorama.registerScenario("Can find a profile", async (s, t, { alice }) => {
   t.notEqual(profile.entry.address, undefined)
 })
 
-// diorama.registerScenario("Can find swap", async (s, t, { alice }) => {
-//   console.log("=============================================== FIND SWAP");
-//   await alice.call('my_zome', 'create_profile', { nickname: "alice" })
-//
-//   await alice.call('my_zome', 'create_offer', { iam_offering: "apples", iam_requesting: "oranges" })
-//   await alice.call('my_zome', 'create_offer', { iam_offering: "pears", iam_requesting: "oranges" })
-//   await alice.call('my_zome', 'create_offer', { iam_offering: "bananas", iam_requesting: "apples" })
-//   await alice.call('my_zome', 'create_offer', { iam_offering: "strawberries", iam_requesting: "apples" })
-//   await alice.call('my_zome', 'create_offer', { iam_offering: "strawberries", iam_requesting: "bananas" })
-//
-//   // #1 oranges -> apples
-//   // #2 oranges -> pears
-//   // #3 apples -> bananas
-//   // #4 apples -> strawberries
-//   // #5 bananas -> strawberries
-//
-//
-//   // should return: #1, #2
-//   await try_query("oranges", "", 1, 2)
-//
-//   // should return: #1, #2, #1+#3, #1+#4
-//   await try_query("oranges", "", 2, 4)
-//
-//   // should return: #1, #2, #1+#3, #1+#4, #1+#3+#5
-//   await try_query("oranges", "", 3, 5)
-//
-//   async function try_query(iam_offering, iam_requesting, max_swaps, expected_results) {
-//     const searchResult = await alice.call('my_zome', 'find_swaps', { iam_offering, iam_requesting, max_swaps })
-//     console.log(JSON.stringify(searchResult, null, 2))
-//     t.equal(searchResult.Ok.length, expected_results)
-//   }
-// })
-//
+diorama.registerScenario("Can find deep offers when I WANT", async (s, t, { alice }) => {
+  console.log("=============================================== FIND DEEP OFFERS I WANT");
+  await alice.call('my_zome', 'create_profile', { nickname: "alice" })
+
+  await alice.call('my_zome', 'create_offer', { iam_offering: "apples", iam_requesting: [ "oranges" ] })
+  await alice.call('my_zome', 'create_offer', { iam_offering: "pears", iam_requesting: [ "oranges", "goodwill" ] })
+  await alice.call('my_zome', 'create_offer', { iam_offering: "bananas", iam_requesting: [ "apples" ] })
+  await alice.call('my_zome', 'create_offer', { iam_offering: "strawberries", iam_requesting: [ "apples" ] })
+  await alice.call('my_zome', 'create_offer', { iam_offering: "strawberries", iam_requesting: [ "bananas" ] })
+
+  // #1 oranges -> apples
+  // #2 goodwill OR oranges -> pears
+  // #3 apples -> bananas
+  // #4 apples -> strawberries
+  // #5 bananas -> strawberries
+
+
+  // should return: #4, #5
+  await try_query("strawberries", 1, 2)
+
+  // should return: #4, #5, #1+#4, #3+#5
+  await try_query("strawberries", 2, 4)
+
+  // should return: #4, #5, #1+#4, #3+#5, #1+#3+#5
+  await try_query("strawberries", 3, 5)
+
+  async function try_query(i_want, max_swaps, expected_results) {
+    const searchResult = await alice.call('my_zome', 'find_deep_offers_i_want', { i_want, max_swaps })
+    console.log(JSON.stringify(searchResult, null, 2))
+    t.equal(searchResult.Ok.length, expected_results)
+  }
+})
+
 
 diorama.run()
 
