@@ -77,9 +77,11 @@ define_zome! {
             outputs: |result: ZomeApiResult<Address>|,
             handler: handle_create_offer
         }
-//        get_my_offers: {
-//
-//        }
+        get_my_offers: {
+            inputs: | |,
+            outputs: |result: ZomeApiResult<Vec<EntryWithAddress<Offer>>>|,
+            handler: handle_get_my_offers
+        }
         find_offers: {
             inputs: |i_want: String|,
             outputs: |result: ZomeApiResult<Vec<EntryWithAddress<Offer>>>|,
@@ -98,7 +100,7 @@ define_zome! {
     ]
     traits: {
         hc_public [create_profile, get_my_profile, get_profile, find_profiles,
-                   create_offer, find_offers, remove_offer]
+                   create_offer, get_my_offers, find_offers, remove_offer]
     }
 }
 
@@ -119,25 +121,33 @@ fn handle_find_profiles(nickname_prefix: String) -> ZomeApiResult<Vec<EntryWithA
 }
 
 fn handle_remove_offer(offer_address: Address) -> ZomeApiResult<()> {
-    get_entry_as_type_with_address::<Offer>(offer_address.clone())?;
+    let offer = get_entry_as_type_with_address::<Offer>(offer_address.clone())?.entry;
 
+    let offered_item_address = get_or_create_item(offer.offering.clone())?;
+    let profile_address = get_my_profile_address()?;
+    let offers_anchor_address = get_anchor_address("offers")?;
+
+    hdk::remove_link(&offers_anchor_address, &offer_address, "anchor_offer", "")?;
+    hdk::remove_link(&offered_item_address, &offer_address, "item_offer", "offering")?;
+    hdk::remove_link(&profile_address, &offer_address, "profile_offer", "")?;
     hdk::remove_entry(&offer_address)?;
     Ok(())
 }
 
 fn handle_find_offers(i_want: String) -> ZomeApiResult<Vec<EntryWithAddress<Offer>>> {
-    // TODO: rewrite to use the anchors
-    let offers_anchor_address = get_anchor_address("offers")?;
+    if i_want == "" {
+        let offers_anchor_address = get_anchor_address("offers")?;
+        get_links_and_load_type_with_address(&offers_anchor_address, LinkMatch::Exactly("anchor_offer"), LinkMatch::Any)
+    } else {
+        let sought_item_address = get_or_create_item(i_want.clone())?;
+        get_links_and_load_type_with_address(&sought_item_address, LinkMatch::Exactly("item_offer"), LinkMatch::Any)
+    }
+}
 
-    let offers = get_links_and_load_type_with_address::<Offer>(&offers_anchor_address, LinkMatch::Exactly("anchor_offer"), LinkMatch::Any)?
-        .iter()
-        .filter(|&p| {
-            i_want == "" || i_want == p.entry.offering
-        })
-        .map(|e| { e.clone() })
-        .collect();
+fn handle_get_my_offers() -> ZomeApiResult<Vec<EntryWithAddress<Offer>>> {
+    let profile_address = get_my_profile_address()?;
 
-    Ok(offers)
+    get_links_and_load_type_with_address(&profile_address, LinkMatch::Exactly("profile_offer"), LinkMatch::Any)
 }
 
 //fn handle_find_swaps_0(iam_offering: String,
@@ -181,7 +191,6 @@ fn handle_find_offers(i_want: String) -> ZomeApiResult<Vec<EntryWithAddress<Offe
 fn handle_create_offer(iam_offering: String, iam_requesting: Vec<String>) -> ZomeApiResult<Address> {
     let offered_item_address = get_or_create_item(iam_offering.clone())?;
     let profile_address = get_my_profile_address()?;
-
     let offers_anchor_address = get_anchor_address("offers")?;
 
     let offer = Entry::App(
