@@ -38,7 +38,15 @@ diorama.registerScenario("Can get own profile", async (s, t, { alice }) => {
 
   await alice.call('my_zome', 'create_profile', { nickname: "alice" })
 
-  const result = await alice.call('my_zome', 'get_my_profile', { })
+  let result = await alice.call('my_zome', 'get_my_profile', { })
+  console.log(result)
+  t.equal(result.Err, undefined)
+  t.notEqual(result.Ok, undefined)
+  t.notEqual(result.Ok.address, undefined)
+  t.notEqual(result.Ok.entry, undefined)
+  t.equal(result.Ok.entry.nickname, "alice")
+
+  result = await alice.call('my_zome', 'get_profile', { profile_address: result.Ok.address })
   console.log(result)
   t.equal(result.Err, undefined)
   t.notEqual(result.Ok, undefined)
@@ -55,6 +63,18 @@ diorama.registerScenario("Can create offer", async (s, t, { alice }) => {
   console.log(createResult)
   t.equal(createResult.Err, undefined)
   t.notEqual(createResult.Ok, undefined)
+})
+
+diorama.registerScenario("Can remove offer", async (s, t, { alice }) => {
+  console.log("=============================================== REMOVE OFFER");
+  await alice.call('my_zome', 'create_profile', { nickname: "alice" })
+
+  let createResult = await alice.call('my_zome', 'create_offer', { iam_offering: "apples", iam_requesting: [ "oranges", "goodwill" ] })
+
+  const deleteResult = await alice.call('my_zome', 'remove_offer', { offer_address: createResult.Ok })
+  console.log(deleteResult)
+  t.equal(deleteResult.Err, undefined)
+  t.notEqual(deleteResult.Ok, undefined)
 })
 
 diorama.registerScenario("Can find offer", async (s, t, { alice }) => {

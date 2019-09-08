@@ -39,8 +39,7 @@ define_zome! {
         anchor_definition(),
         profile_definition(),
         item_definition(),
-        offer_definition(),
-        interest_definition()
+        offer_definition()
     ]
 
     init: || {
@@ -62,25 +61,34 @@ define_zome! {
             outputs: |result: ZomeApiResult<EntryWithAddress<Profile>>|,
             handler: handle_get_my_profile
         }
-        create_offer: {
-            inputs: |iam_offering: String, iam_requesting: Vec<String>|,
-            outputs: |result: ZomeApiResult<Address>|,
-            handler: handle_create_offer
-        }
-        register_interest: {
-            inputs: |offer_address: Address|,
-            outputs: |result: ZomeApiResult<()>|,
-            handler: handle_register_interest
-        }
-        find_offers: {
-            inputs: |i_want: String|,
-            outputs: |result: ZomeApiResult<Vec<EntryWithAddress<Offer>>>|,
-            handler: handle_find_offers
+        get_profile: {
+            inputs: |profile_address: Address|,
+            outputs: |result: ZomeApiResult<EntryWithAddress<Profile>>|,
+            handler: handle_get_profile
         }
         find_profiles: {
             inputs: |nickname_prefix: String|,
             outputs: |result: ZomeApiResult<Vec<EntryWithAddress<Profile>>>|,
             handler: handle_find_profiles
+        }
+
+        create_offer: {
+            inputs: |iam_offering: String, iam_requesting: Vec<String>|,
+            outputs: |result: ZomeApiResult<Address>|,
+            handler: handle_create_offer
+        }
+//        get_my_offers: {
+//
+//        }
+        find_offers: {
+            inputs: |i_want: String|,
+            outputs: |result: ZomeApiResult<Vec<EntryWithAddress<Offer>>>|,
+            handler: handle_find_offers
+        }
+        remove_offer: {
+            inputs: |offer_address: Address|,
+            outputs: |result: ZomeApiResult<()>|,
+            handler: handle_remove_offer
         }
 //        find_swaps: {
 //            inputs: |iam_offering: String, iam_requesting: String, max_swaps: i32|,
@@ -89,8 +97,13 @@ define_zome! {
 //        }
     ]
     traits: {
-        hc_public [create_profile, get_my_profile, create_offer, register_interest, find_offers, find_profiles, find_swaps]
+        hc_public [create_profile, get_my_profile, get_profile, find_profiles,
+                   create_offer, find_offers, remove_offer]
     }
+}
+
+fn handle_get_profile(profile_address: Address) -> ZomeApiResult<EntryWithAddress<Profile>> {
+    get_entry_as_type_with_address(profile_address)
 }
 
 fn handle_get_my_profile() -> ZomeApiResult<EntryWithAddress<Profile>> {
@@ -103,6 +116,13 @@ fn handle_find_profiles(nickname_prefix: String) -> ZomeApiResult<Vec<EntryWithA
     let profiles_anchor_address = get_anchor_address("profiles")?;
 
     get_links_and_load_type_with_address::<Profile>(&profiles_anchor_address, LinkMatch::Exactly("anchor_profile"), LinkMatch::Regex(&format!("^{}.*", &regex::escape(&nickname_prefix))))
+}
+
+fn handle_remove_offer(offer_address: Address) -> ZomeApiResult<()> {
+    get_entry_as_type_with_address::<Offer>(offer_address.clone())?;
+
+    hdk::remove_entry(&offer_address)?;
+    Ok(())
 }
 
 fn handle_find_offers(i_want: String) -> ZomeApiResult<Vec<EntryWithAddress<Offer>>> {
@@ -180,10 +200,6 @@ fn handle_create_offer(iam_offering: String, iam_requesting: Vec<String>) -> Zom
     hdk::link_entries(&profile_address, &offer_address, "profile_offer", "")?;
 
     Ok(offer_address)
-}
-
-fn handle_show_interest(offer_address: Address) -> ZomeApiResult<()> {
-
 }
 
 fn handle_create_profile(nickname: String) -> ZomeApiResult<Address> {
@@ -385,53 +401,6 @@ pub fn offer_definition() -> ValidatingEntryType {
             Ok(())
         },
         links: [
-            from!(
-                "%agent_id",
-                link_type: "agent_offer_interest",
-                validation_package: || hdk::ValidationPackageDefinition::Entry,
-                validation: |_validation_data: hdk::LinkValidationData| {
-                    Ok(())
-                }
-            ),
-        ]
-    )
-}
-
-// ============================================================================ INTEREST
-
-#[derive(Serialize, Deserialize, Debug, Clone, DefaultJson)]
-pub struct Interest {
-    offer: Address,
-    profile: Address,
-    start_time: u64
-}
-
-pub fn interest_definition() -> ValidatingEntryType {
-    entry!(
-        name: "interest",
-        description: "",
-        sharing: Sharing::Public,
-        validation_package: || hdk::ValidationPackageDefinition::Entry,
-        validation: |_validation_data: hdk::EntryValidationData<Interest>| {
-            Ok(())
-        },
-        links: [
-            from!(
-                "%agent_id",
-                link_type: "agent_interest",
-                validation_package: || hdk::ValidationPackageDefinition::Entry,
-                validation: |_validation_data: hdk::LinkValidationData| {
-                    Ok(())
-                }
-            ),
-            from!(
-                "offer",
-                link_type: "offer_interest",
-                validation_package: || hdk::ValidationPackageDefinition::Entry,
-                validation: |_validation_data: hdk::LinkValidationData| {
-                    Ok(())
-                }
-            )
         ]
     )
 }
