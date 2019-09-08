@@ -30,6 +30,24 @@ const diorama = new Diorama({
 //   t.notEqual(createResult.Ok, undefined)
 // })
 
+diorama.registerScenario("Can get own profile", async (s, t, { alice }) => {
+  console.log("=============================================== OWN PROFILE");
+  const empty_result = await alice.call('my_zome', 'get_my_profile', { })
+  console.log(empty_result)
+  t.notEqual(empty_result.Err, undefined)
+  t.equal(empty_result.Ok, undefined)
+
+  await alice.call('my_zome', 'create_profile', { nickname: "alice" })
+
+  const result = await alice.call('my_zome', 'get_my_profile', { })
+  console.log(result)
+  t.equal(result.Err, undefined)
+  t.notEqual(result.Ok, undefined)
+  t.notEqual(result.Ok.address, undefined)
+  t.notEqual(result.Ok.entry, undefined)
+  t.equal(result.Ok.entry.nickname, "alice")
+})
+
 // diorama.registerScenario("Can create exchange", async (s, t, { alice }) => {
 //   console.log("=============================================== CREATE EXCHANGE");
 //   await alice.call('my_zome', 'create_profile', { nickname: "alice" })
@@ -40,53 +58,41 @@ const diorama = new Diorama({
 //   t.notEqual(createResult.Ok, undefined)
 // })
 
-diorama.registerScenario("Can find exchange", async (s, t, { alice, bob }) => {
-  console.log("=============================================== FIND EXCHANGE");
-  await alice.call('my_zome', 'create_profile', { nickname: "alice" })
-  await bob.call('my_zome', 'create_profile', { nickname: "bob" })
+// diorama.registerScenario("Can find exchange", async (s, t, { alice, bob }) => {
+//   console.log("=============================================== FIND EXCHANGE");
+//   await alice.call('my_zome', 'create_profile', { nickname: "alice" })
+//   await bob.call('my_zome', 'create_profile', { nickname: "bob" })
+//
+//   await alice.call('my_zome', 'create_exchange', { offering: "apples", requesting: "oranges" })
+//
+//   const searchResult = await bob.call('my_zome', 'find_exchanges', { offering: "", requesting: "" })
+//   console.log(JSON.stringify(searchResult, null, 2))
+//   t.equal(searchResult.Err, undefined)
+//   t.equal(searchResult.Ok.length, 1)
+//
+//   const exchange = searchResult.Ok[0]
+//
+//   t.notEqual(exchange.address, undefined)
+//   t.equal(exchange.entry.offering, "apples")
+//   t.equal(exchange.entry.requesting, "oranges")
+//   t.notEqual(exchange.entry.profile, undefined)
+// })
 
-  await alice.call('my_zome', 'create_exchange', { offering: "apples", requesting: "oranges" })
-
-  const searchResult = await bob.call('my_zome', 'find_exchanges', { offering: "", requesting: "" })
-  console.log(JSON.stringify(searchResult, null, 2))
-  t.equal(searchResult.Err, undefined)
-  t.equal(searchResult.Ok.length, 1)
-
-  const exchange = searchResult.Ok[0]
-
-  t.notEqual(exchange.address, undefined)
-  t.equal(exchange.entry.offering, "apples")
-  t.equal(exchange.entry.requesting, "oranges")
-  t.notEqual(exchange.entry.profile, undefined)
-})
+// diorama.registerScenario("Can find a profile", async (s, t, { alice, bob }) => {
+//   console.log("=============================================== FIND A PROFILE");
+//   await alice.call('my_zome', 'create_profile', { nickname: "alice" })
+//
+//   const searchResult = await bob.call('my_zome', 'find_profiles', { nickname_prefix: "ali" })
+//   console.log(JSON.stringify(searchResult, null, 2))
+//   t.equal(searchResult.Err, undefined)
+//   t.equal(searchResult.Ok.length, 1)
+//
+//   const profile = searchResult.Ok[0]
+//
+//   t.notEqual(profile.address, undefined)
+//   t.equal(profile.entry.nickname, "alice")
+//   t.notEqual(profile.entry.address, undefined)
+// })
 
 diorama.run()
-
-// diorama.registerScenario('Can add some items', async (s, t, { alice }) => {
-//   const createResult = await alice.call('my_zome', 'create_list', { list: { name: 'test list' } })
-//   const listAddr = createResult.Ok
-//
-//   const result1 = await alice.call('my_zome', 'add_item', { list_item: { text: 'Learn Rust', completed: true }, list_addr: listAddr })
-//   const result2 = await alice.call('my_zome', 'add_item', { list_item: { text: 'Master Holochain', completed: false }, list_addr: listAddr })
-//
-//   console.log(result1)
-//   console.log(result2)
-//
-//   t.notEqual(result1.Ok, undefined)
-//   t.notEqual(result2.Ok, undefined)
-// })
-//
-// diorama.registerScenario('Can get a list with items', async (s, t, { alice }) => {
-//   const createResult = await alice.call('my_zome', 'create_list', { list: { name: 'test list' } })
-//   const listAddr = createResult.Ok
-//
-//   await alice.call('my_zome', 'add_item', { list_item: { text: 'Learn Rust', completed: true }, list_addr: listAddr })
-//   await alice.call('my_zome', 'add_item', { list_item: { text: 'Master Holochain', completed: false }, list_addr: listAddr })
-//
-//   const getResult = await alice.call('my_zome', 'get_list', { list_addr: listAddr })
-//   console.log(getResult)
-//
-//   t.equal(getResult.Ok.items.length, 2, 'there should be 2 items in the list')
-// })
-
 
