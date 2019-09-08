@@ -62,12 +62,12 @@ define_zome! {
             handler: handle_get_my_profile
         }
         create_exchange: {
-            inputs: |offering: String, requesting: String|,
+            inputs: |iam_offering: String, iam_requesting: String|,
             outputs: |result: ZomeApiResult<Address>|,
             handler: handle_create_exchange
         }
         find_exchanges: {
-            inputs: |offering: String, requesting: String|,
+            inputs: |iam_offering: String, iam_requesting: String|,
             outputs: |result: ZomeApiResult<Vec<EntryWithAddress<Exchange>>>|,
             handler: handle_find_exchanges
         }
@@ -76,9 +76,14 @@ define_zome! {
             outputs: |result: ZomeApiResult<Vec<EntryWithAddress<Profile>>>|,
             handler: handle_find_profiles
         }
+        find_swaps: {
+            inputs: |iam_offering: String, iam_requesting: String, max_swaps: i32|,
+            outputs: |result: ZomeApiResult<Vec<Vec<EntryWithAddress<Exchange>>>>|,
+            handler: handle_find_swaps
+        }
     ]
     traits: {
-        hc_public [create_profile, get_my_profile, create_exchange, find_exchanges, find_profiles]
+        hc_public [create_profile, get_my_profile, create_exchange, find_exchanges, find_profiles, find_swaps]
     }
 }
 
@@ -94,19 +99,57 @@ fn handle_find_profiles(nickname_prefix: String) -> ZomeApiResult<Vec<EntryWithA
     get_links_and_load_type_with_address::<Profile>(&profiles_anchor_address, LinkMatch::Exactly("anchor_profile"), LinkMatch::Regex(&format!("^{}.*", &regex::escape(&nickname_prefix))))
 }
 
-fn handle_find_exchanges(offering: String, requesting: String) -> ZomeApiResult<Vec<EntryWithAddress<Exchange>>> {
+fn handle_find_exchanges(iam_offering: String, iam_requesting: String) -> ZomeApiResult<Vec<EntryWithAddress<Exchange>>> {
     // TODO: rewrite to use the anchors
     let exchanges_anchor_address = get_anchor_address("exchanges")?;
 
     let exchanges = get_links_and_load_type_with_address::<Exchange>(&exchanges_anchor_address, LinkMatch::Exactly("anchor_exchange"), LinkMatch::Any)?
         .iter()
         .filter(|&p| {
-            (offering == "" || offering == p.entry.offering) && (requesting == "" || requesting == p.entry.requesting)
+            (iam_offering == "" || iam_offering == p.entry.requesting) && (iam_requesting == "" || iam_requesting == p.entry.offering)
         })
         .map(|e| { e.clone() })
         .collect();
 
     Ok(exchanges)
+}
+
+fn handle_find_swaps_0(iam_offering: String,
+                       iam_requesting: String,
+                       max_swaps: i32,
+                       already_exchanged: Vec<EntryWithAddress<Exchange>>,
+                       results: &mut Vec<Vec<EntryWithAddress<Exchange>>>) -> ZomeApiResult<()> {
+    if max_swaps == 0 {
+        Ok(())
+    } else if iam_requesting == "" {
+        handle_find_exchanges(iam_offering, "".into())?
+            .iter()
+            .for_each(|ex| {
+                let entry = [ already_exchanged.as_slice(), vec![ex.clone()].as_slice() ].concat();
+                results.push(entry.clone());
+                handle_find_swaps_0(ex.entry.offering.clone(), "".into(), max_swaps - 1, entry, results)
+                    .unwrap_or(())
+            });
+        Ok(())
+    } else if iam_offering == "" {
+        handle_find_exchanges("".into(), iam_requesting)?
+            .iter()
+            .for_each(|ex| {
+                let entry = [ vec![ex.clone()].as_slice(), already_exchanged.as_slice() ].concat();
+                results.push(entry.clone());
+                handle_find_swaps_0("".into(), ex.entry.requesting.clone(), max_swaps - 1, entry, results)
+                    .unwrap_or(())
+            });
+        Ok(())
+    } else {
+        Err(ZomeApiError::Internal("Not implemented".into()))
+    }
+}
+
+fn handle_find_swaps(iam_offering: String, iam_requesting: String, max_swaps: i32) -> ZomeApiResult<Vec<Vec<EntryWithAddress<Exchange>>>>{
+    let mut result = Vec::new();
+    handle_find_swaps_0(iam_offering, iam_requesting, max_swaps, vec![], &mut result)?;
+    Ok(result.clone())
 }
 
 fn handle_create_exchange(offering: String, requesting: String) -> ZomeApiResult<Address> {
@@ -319,8 +362,8 @@ fn get_or_create_item(name: String) -> ZomeApiResult<Address> {
 
 #[derive(Serialize, Deserialize, Debug, Clone, DefaultJson)]
 pub struct Exchange {
-    offering: String,
     requesting: String,
+    offering: String,
     profile: Address
 }
 
